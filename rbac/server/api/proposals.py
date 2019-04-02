@@ -26,6 +26,7 @@ from rbac.server.api.auth import authorized
 from rbac.server.api import utils
 from rbac.server.db import proposals_query
 from rbac.server.db.relationships_query import fetch_relationships
+from rbac.server.db import users_query
 from rbac.server.db.users_query import fetch_user_resource
 from rbac.server.db.db_utils import create_connection
 
@@ -169,6 +170,7 @@ async def compile_proposal_resource(conn, proposal_resource):
         proposal_resource["approvers"] = await fetch_relationships(
             table, "role_id", proposal_resource.get("object")
         ).run(conn)
+
     elif "task" in table:
         proposal_resource["approvers"] = await fetch_relationships(
             table, "task_id", proposal_resource.get("object")
@@ -179,5 +181,11 @@ async def compile_proposal_resource(conn, proposal_resource):
     else:
         user_resource = await fetch_user_resource(conn, proposal_resource.get("object"))
         proposal_resource["approvers"] = [user_resource.get("manager")]
+
+    for i in range(len(proposal_resource["approvers"])):
+        user_resource = await users_query.fetch_manager_chain(
+            conn, proposal_resource["approvers"][i]
+        )
+        proposal_resource["approvers"] = user_resource + proposal_resource["approvers"]
     conn.close()
     return proposal_resource
